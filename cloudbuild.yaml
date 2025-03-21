@@ -1,0 +1,62 @@
+steps:
+  # Build the Docker image for testing
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/dataflow-test:$SHORT_SHA', '.']
+    
+  # Run the tests in the Docker container
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['run', 'gcr.io/$PROJECT_ID/dataflow-test:$SHORT_SHA']
+    
+  # Upload the pipeline script to GCS
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args: ['cp', 'src/cicd_pipeline.py', 'gs://$PROJECT_ID-dataflow-scripts/pipeline-$SHORT_SHA.py']
+    
+  # Create sample data if needed
+  - name: 'gcr.io/cloud-builders/gsutil'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Creating sample data for testing..."
+        echo "Hello World" > sample.txt
+        echo "This is a test" >> sample.txt
+        echo "For Dataflow pipeline" >> sample.txt
+        
+        # Get current timestamp
+        TIMESTAMP=$(date +%Y%m%d%H%M%S)
+        
+        # Upload to GCS with timestamp
+        gsutil cp sample.txt gs://$PROJECT_ID-data/input/sample-$TIMESTAMP.txt
+        
+        # Save the timestamp and file path for the next step
+        echo "$TIMESTAMP" > /workspace/timestamp.txt
+
+  # Trigger the DAG in Cloud Composer
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Get the timestamp from previous step
+        TIMESTAMP=$(cat /workspace/timestamp.txt)
+        
+        echo "Triggering Airflow DAG to run Dataflow job..."
+        gcloud composer environments run \
+          my-composer-environment \
+          --location=$_COMPOSER_REGION \
+          dags trigger -- cicd_dataflow_dag \
+          -c '{"pipeline_file":"gs://$PROJECT_ID-dataflow-scripts/pipeline-$SHORT_SHA.py",
+              "input_file":"gs://$PROJECT_ID-data/input/sample-'$TIMESTAMP'.txt",
+              "output_path":"gs://$PROJECT_ID-data/output/results-'$TIMESTAMP'",
+              "project_id":"$PROJECT_ID"}'
+
+# Save the Docker image to Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/dataflow-test:$SHORT_SHA'
+
+# Timeout for the build (30 minutes)
+timeout: '1800s'
+
+# Substitutions for variables
+substitutions:
+  _COMPOSER_REGION: 'us-central1'  # Replace with your Composer region

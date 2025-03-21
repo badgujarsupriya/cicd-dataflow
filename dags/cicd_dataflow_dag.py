@@ -68,11 +68,12 @@ run_dataflow_pipeline = DataflowCreatePythonJobOperator(
         'project': '{{ ti.xcom_pull(task_ids="validate_setup")["project_id"] }}',
         'input': '{{ ti.xcom_pull(task_ids="validate_setup")["input_file"] }}',
         'output': '{{ ti.xcom_pull(task_ids="validate_setup")["output_path"] }}',
-        'temp_location': 'gs://{{ ti.xcom_pull(task_ids="validate_setup")["project_id"] }}-dataflow-temp',
-        'staging_location': 'gs://{{ ti.xcom_pull(task_ids="validate_setup")["project_id"] }}-dataflow-staging',
+        'temp_location': 'gs://dataflow-cicd-453916-dataflow-temp',
+        'staging_location': 'gs://dataflow-cicd-453916-dataflow-staging',
         'region': REGION,
-        'max_num_workers': 2,
-        'machine_type': 'n1-standard-2'
+    },
+    dataflow_default_options={
+        'project': '{{ ti.xcom_pull(task_ids="validate_setup")["project_id"] }}'
     },
     location=REGION,
     wait_until_finished=True,

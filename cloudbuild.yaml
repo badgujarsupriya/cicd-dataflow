@@ -1,4 +1,20 @@
 steps:
+  # Verify buckets exist before proceeding
+  - name: 'gcr.io/cloud-builders/gsutil'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Verifying required buckets exist..."
+        gsutil ls -b gs://dataflow-cicd-453916-dataflow-temp || gsutil mb gs://dataflow-cicd-453916-dataflow-temp
+        gsutil ls -b gs://dataflow-cicd-453916-dataflow-staging || gsutil mb gs://dataflow-cicd-453916-dataflow-staging
+        gsutil ls -b gs://dataflow-cicd-453916-data || gsutil mb gs://dataflow-cicd-453916-data
+        
+        # Make sure the buckets are readable/writable
+        gsutil iam ch serviceAccount:709091475954-compute@developer.gserviceaccount.com:roles/storage.objectAdmin gs://dataflow-cicd-453916-dataflow-temp
+        gsutil iam ch serviceAccount:709091475954-compute@developer.gserviceaccount.com:roles/storage.objectAdmin gs://dataflow-cicd-453916-dataflow-staging
+        gsutil iam ch serviceAccount:709091475954-compute@developer.gserviceaccount.com:roles/storage.objectAdmin gs://dataflow-cicd-453916-data
+
   # Build the Docker image for testing
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'gcr.io/$PROJECT_ID/dataflow-test:$SHORT_SHA', '.']
@@ -40,8 +56,8 @@ steps:
         # Get timestamp
         timestamp=$(cat /workspace/timestamp.txt)
         
-        # Create a temporary version of the DAG with all variables filled
-        sed "s/PROJECT_ID = \"dataflow-cicd-453916\"/PROJECT_ID = \"$PROJECT_ID\"/g" dags/cicd_dataflow_dag.py > /workspace/filled_dag.py
+        # Create a temporary version of the DAG
+        sed "s/REGION = \"us-east1\"/REGION = \"us-east1\"/g" dags/cicd_dataflow_dag.py > /workspace/filled_dag.py
         
         # Upload the DAG file to Composer's DAG bucket
         gsutil cp /workspace/filled_dag.py gs://us-central1-my-composer-env-a7ed6859-bucket/dags/cicd_dataflow_dag.py

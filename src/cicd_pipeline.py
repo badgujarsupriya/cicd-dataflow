@@ -7,6 +7,7 @@ import argparse
 import logging
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions, StandardOptions, SetupOptions
+from apache_beam.options.pipeline_options import GoogleCloudOptions
 
 def run_pipeline(argv=None):
     """Runs the data processing pipeline with the provided arguments."""
@@ -16,6 +17,9 @@ def run_pipeline(argv=None):
     parser.add_argument('--input', required=True, help='Input file pattern')
     parser.add_argument('--output', required=True, help='Output location')
     parser.add_argument('--project', required=True, help='Google Cloud Project ID')
+    parser.add_argument('--temp_location', required=True, help='Temp location')
+    parser.add_argument('--staging_location', required=True, help='Staging location')
+    parser.add_argument('--region', required=True, help='GCP Region')
     
     # Parse known arguments
     known_args, pipeline_args = parser.parse_known_args(argv)
@@ -27,10 +31,20 @@ def run_pipeline(argv=None):
     pipeline_options.view_as(StandardOptions)
     pipeline_options.view_as(SetupOptions).save_main_session = True
     
+    # Explicitly set required options
+    google_cloud_options = pipeline_options.view_as(GoogleCloudOptions)
+    google_cloud_options.project = known_args.project
+    google_cloud_options.region = known_args.region
+    google_cloud_options.temp_location = known_args.temp_location
+    google_cloud_options.staging_location = known_args.staging_location
+    
     # Log the configured options
     logging.info(f"Running pipeline with input: {known_args.input}")
     logging.info(f"Output path: {known_args.output}")
     logging.info(f"Project ID: {known_args.project}")
+    logging.info(f"Region: {known_args.region}")
+    logging.info(f"Temp location: {known_args.temp_location}")
+    logging.info(f"Staging location: {known_args.staging_location}")
     logging.info(f"Pipeline options: {pipeline_options.get_all_options()}")
     
     # Run the pipeline

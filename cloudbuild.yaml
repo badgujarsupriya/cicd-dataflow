@@ -11,7 +11,7 @@ steps:
   - name: 'gcr.io/cloud-builders/gsutil'
     args: ['cp', 'src/cicd_pipeline.py', 'gs://$PROJECT_ID-dataflow-scripts/pipeline-$SHORT_SHA.py']
     
-  # Create sample data if needed and generate timestamp
+  # Create sample data and generate timestamp
   - name: 'gcr.io/cloud-builders/gsutil'
     entrypoint: 'bash'
     args:
@@ -22,14 +22,14 @@ steps:
         echo "This is a test" >> sample.txt
         echo "For Dataflow pipeline" >> sample.txt
         
-        # Get current timestamp
-        TIMESTAMP=$(date +%Y%m%d%H%M%S)
+        # Get current timestamp with a different variable name to avoid confusion
+        timestamp=$(date +%Y%m%d%H%M%S)
         
         # Upload to GCS with timestamp
-        gsutil cp sample.txt gs://$PROJECT_ID-data/input/sample-$TIMESTAMP.txt
+        gsutil cp sample.txt gs://$PROJECT_ID-data/input/sample-$$timestamp.txt
         
         # Save the timestamp for the next step
-        echo "$TIMESTAMP" > /workspace/timestamp.txt
+        echo "$$timestamp" > /workspace/timestamp.txt
 
   # Trigger the DAG in Cloud Composer
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -38,17 +38,14 @@ steps:
       - '-c'
       - |
         # Get the timestamp from previous step
-        TIMESTAMP=$(cat /workspace/timestamp.txt)
+        timestamp=$(cat /workspace/timestamp.txt)
         
         echo "Triggering Airflow DAG to run Dataflow job..."
         gcloud composer environments run \
           $_COMPOSER_ENV \
           --location=$_COMPOSER_REGION \
           dags trigger -- cicd_dataflow_dag \
-          -c '{"pipeline_file":"gs://$PROJECT_ID-dataflow-scripts/pipeline-$SHORT_SHA.py",
-              "input_file":"gs://$PROJECT_ID-data/input/sample-'$TIMESTAMP'.txt",
-              "output_path":"gs://$PROJECT_ID-data/output/results-'$TIMESTAMP'",
-              "project_id":"$PROJECT_ID"}'
+          -c '{"pipeline_file":"gs://$PROJECT_ID-dataflow-scripts/pipeline-$SHORT_SHA.py","input_file":"gs://$PROJECT_ID-data/input/sample-'"$$timestamp"'.txt","output_path":"gs://$PROJECT_ID-data/output/results-'"$$timestamp"'","project_id":"$PROJECT_ID"}'
 
 # Save the Docker image to Container Registry
 images:

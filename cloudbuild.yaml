@@ -1,6 +1,3 @@
-options:
-  logging: CLOUD_LOGGING_ONLY
-
 steps:
   # Build the Docker image for testing
   - name: 'gcr.io/cloud-builders/docker'
@@ -14,7 +11,7 @@ steps:
   - name: 'gcr.io/cloud-builders/gsutil'
     args: ['cp', 'src/cicd_pipeline.py', 'gs://$PROJECT_ID-dataflow-scripts/pipeline-$SHORT_SHA.py']
     
-  # Create sample data if needed
+  # Create sample data if needed and generate timestamp
   - name: 'gcr.io/cloud-builders/gsutil'
     entrypoint: 'bash'
     args:
@@ -31,7 +28,7 @@ steps:
         # Upload to GCS with timestamp
         gsutil cp sample.txt gs://$PROJECT_ID-data/input/sample-$TIMESTAMP.txt
         
-        # Save the timestamp and file path for the next step
+        # Save the timestamp for the next step
         echo "$TIMESTAMP" > /workspace/timestamp.txt
 
   # Trigger the DAG in Cloud Composer
@@ -45,7 +42,7 @@ steps:
         
         echo "Triggering Airflow DAG to run Dataflow job..."
         gcloud composer environments run \
-          my-composer-environment \
+          $_COMPOSER_ENV \
           --location=$_COMPOSER_REGION \
           dags trigger -- cicd_dataflow_dag \
           -c '{"pipeline_file":"gs://$PROJECT_ID-dataflow-scripts/pipeline-$SHORT_SHA.py",
@@ -57,9 +54,14 @@ steps:
 images:
   - 'gcr.io/$PROJECT_ID/dataflow-test:$SHORT_SHA'
 
+# Add logging options to avoid service account errors
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 # Timeout for the build (30 minutes)
 timeout: '1800s'
 
 # Substitutions for variables
 substitutions:
-  _COMPOSER_REGION: 'us-central1'  # Replace with your Composer region
+  _COMPOSER_ENV: 'my-composer-environment'  # Default value for your Composer environment name
+  _COMPOSER_REGION: 'us-central1'           # Default value for your Composer region

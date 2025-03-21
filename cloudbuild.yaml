@@ -22,14 +22,35 @@ steps:
         echo "This is a test" >> sample.txt
         echo "For Dataflow pipeline" >> sample.txt
         
-        # Get current timestamp with a different variable name to avoid confusion
+        # Get current timestamp
         timestamp=$(date +%Y%m%d%H%M%S)
         
         # Upload to GCS with timestamp
-        gsutil cp sample.txt gs://$PROJECT_ID-data/input/sample-$$timestamp.txt
+        gsutil cp sample.txt gs://$PROJECT_ID-data/input/sample-$timestamp.txt
         
         # Save the timestamp for the next step
-        echo "$$timestamp" > /workspace/timestamp.txt
+        echo "$timestamp" > /workspace/timestamp.txt
+        
+  # Upload the DAG file directly to the Composer DAGs bucket
+  - name: 'gcr.io/cloud-builders/gsutil'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Get timestamp
+        timestamp=$(cat /workspace/timestamp.txt)
+        
+        # Create a temporary version of the DAG with all variables filled
+        sed "s/PROJECT_ID = \"dataflow-cicd-453916\"/PROJECT_ID = \"$PROJECT_ID\"/g" dags/cicd_dataflow_dag.py > /workspace/filled_dag.py
+        
+        # Upload the DAG file to Composer's DAG bucket
+        gsutil cp /workspace/filled_dag.py gs://us-central1-my-composer-env-a7ed6859-bucket/dags/cicd_dataflow_dag.py
+        
+        echo "DAG file uploaded to Composer bucket"
+        
+        # Wait for the DAG to be processed by Airflow
+        echo "Waiting 60 seconds for DAG to be processed..."
+        sleep 60
 
   # Trigger the DAG in Cloud Composer
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -45,7 +66,7 @@ steps:
           $_COMPOSER_ENV \
           --location=$_COMPOSER_REGION \
           dags trigger -- cicd_dataflow_dag \
-          -c '{"pipeline_file":"gs://$PROJECT_ID-dataflow-scripts/pipeline-$SHORT_SHA.py","input_file":"gs://$PROJECT_ID-data/input/sample-'"$$timestamp"'.txt","output_path":"gs://$PROJECT_ID-data/output/results-'"$$timestamp"'","project_id":"$PROJECT_ID"}'
+          -c '{"pipeline_file":"gs://$PROJECT_ID-dataflow-scripts/pipeline-$SHORT_SHA.py","input_file":"gs://$PROJECT_ID-data/input/sample-'"$timestamp"'.txt","output_path":"gs://$PROJECT_ID-data/output/results-'"$timestamp"'","project_id":"$PROJECT_ID"}'
 
 # Save the Docker image to Container Registry
 images:

@@ -2,7 +2,6 @@
 
 This repository demonstrates a complete CI/CD pipeline for Apache Beam Dataflow jobs using Docker, Cloud Build, Cloud Composer (Airflow), and Dataflow.
 
-
 ## Repository Structure
 
 ```
